@@ -85,7 +85,11 @@
 <header>
   <h1>🏠 Asher &amp; Mia's Feng Shui Optimizer</h1>
   <span class="tag">Cliff-Tan-inspired planner · any room shape · ceiling heights · 3D</span>
-  <button id="themeBtn" style="margin-left:auto;align-self:center">🌙 Dark</button>
+  <span style="margin-left:auto;display:inline-flex;align-self:center;border:1px solid var(--line);border-radius:6px;overflow:hidden">
+    <button id="unitFt" class="active" style="border:none;border-radius:0">ft</button>
+    <button id="unitIn" style="border:none;border-radius:0;border-left:1px solid var(--line)">in</button>
+  </span>
+  <button id="themeBtn" style="margin-left:8px;align-self:center">🌙 Dark</button>
 </header>
 
 <div class="wrap">
@@ -115,7 +119,7 @@
       <h2>Add furniture</h2>
       <div id="furnLibrary"></div>
       <div class="add-custom">
-        <label>Custom piece (W × D × H ft)</label>
+        <label>Custom piece (W × D × H <span class="unit">ft</span>)</label>
         <input id="cName" placeholder="e.g. Reading chair" style="margin-bottom:6px">
         <div class="row">
           <div><input id="cW" type="number" placeholder="W" step="0.5"></div>
@@ -139,8 +143,8 @@
       </select>
       <button id="applyShape" style="width:100%;margin-top:8px">Apply preset</button>
       <div class="row" style="margin-top:8px">
-        <div><label>Room width (ft)</label><input id="rW" type="number" value="20" step="0.5"></div>
-        <div><label>Room length (ft)</label><input id="rL" type="number" value="15" step="0.5"></div>
+        <div><label>Room width (<span class="unit">ft</span>)</label><input id="rW" type="number" value="20" step="any"></div>
+        <div><label>Room length (<span class="unit">ft</span>)</label><input id="rL" type="number" value="15" step="any"></div>
       </div>
       <p class="small-note" style="margin-top:3px">Change these to resize the whole room (press Enter or tab out). The preset button rebuilds the shape from scratch.</p>
 
@@ -160,8 +164,8 @@
       <div class="zone-list" id="obstacleList"></div>
 
       <h2>Ceiling heights</h2>
-      <label>Base ceiling height (ft)</label>
-      <input id="ceilBase" type="number" value="9" step="0.5">
+      <label>Base ceiling height (<span class="unit">ft</span>)</label>
+      <input id="ceilBase" type="number" value="9" step="any">
       <button id="addCeilZone" style="width:100%;margin-top:8px">+ Add ceiling zone (soffit / vault)</button>
       <div class="zone-list" id="ceilList"></div>
       <p class="small-note">A zone overrides the base height over its footprint — e.g. a 7.5ft soffit under
@@ -310,6 +314,10 @@ let selMarker=null;       // currently-selected door/window marker
 let view='2d';            // '2d' | '3d'
 let purpose='living';     // room purpose driving feedback
 let intent='';            // free-text "what is this space for" goal
+let units='ft';           // 'ft' | 'in' — display/entry units (model is always feet)
+const UPF={ft:1,in:12};
+function toU(ft){return Math.round(ft*UPF[units]*100)/100;}
+function fromU(v){return (+v||0)/UPF[units];}
 
 const cv=document.getElementById('plan'), ctx=cv.getContext('2d');
 
@@ -436,6 +444,7 @@ function draw(){
   // markers + wall labels
   markers.forEach(drawMarker);
   drawLabels();
+  drawRuler();
 
   // vertices + resize handles (edit mode)
   if(mode==='room'){room.poly.forEach(p=>{const q=ftToPx(p);
@@ -478,6 +487,19 @@ function drawMarker(m){
     ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
   }
 }
+function drawRuler(){const ox=offX(),oy=offY(),x0=bbox.minx,y0=bbox.miny,x1=bbox.maxx,y1=bbox.maxy;
+  const dark=document.body.classList.contains('dark');
+  ctx.strokeStyle=dark?'#5a5648':'#cfc9bc';ctx.fillStyle=dark?'#b9b3a4':'#8c8678';ctx.lineWidth=1;ctx.font='9px sans-serif';
+  const lab=[1,2,5,10].find(s=>s*pxPerFt>=34)||10;
+  ctx.textBaseline='alphabetic';
+  for(let x=Math.ceil(x0);x<=Math.floor(x1+0.001);x++){const px=ox+(x-x0)*pxPerFt,maj=(x-Math.ceil(x0))%lab===0;
+    ctx.beginPath();ctx.moveTo(px,oy-(maj?7:4));ctx.lineTo(px,oy);ctx.stroke();
+    if(maj){ctx.textAlign='center';ctx.fillText(''+toU(x-x0),px,oy-9);}}
+  ctx.textBaseline='middle';
+  for(let y=Math.ceil(y0);y<=Math.floor(y1+0.001);y++){const py=oy+(y-y0)*pxPerFt,maj=(y-Math.ceil(y0))%lab===0;
+    ctx.beginPath();ctx.moveTo(ox-(maj?7:4),py);ctx.lineTo(ox,py);ctx.stroke();
+    if(maj){ctx.textAlign='right';ctx.fillText(''+toU(y-y0),ox-9,py);}}
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle=dark?'#8f8a7c':'#b0aa9c';ctx.fillText(units,ox-15,oy-9);}
 function drawLabels(){ctx.font="600 11px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
   room.labels.forEach(l=>{if(l.edge>=room.poly.length)return;const a=room.poly[l.edge],b=room.poly[(l.edge+1)%room.poly.length];
     const mp={x:a.x+(b.x-a.x)*l.t,y:a.y+(b.y-a.y)*l.t};let nx=-(b.y-a.y),ny=(b.x-a.x);const L=Math.hypot(nx,ny)||1;nx/=L;ny/=L;
@@ -675,8 +697,8 @@ const cShapeSel=document.getElementById('cShape');
 SHAPES.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s[0].toUpperCase()+s.slice(1);cShapeSel.appendChild(o);});
 document.getElementById('addCustom').onclick=()=>{
   addPiece({name:document.getElementById('cName').value||"Custom",
-    w:+document.getElementById('cW').value||2,l:+document.getElementById('cL').value||2,
-    h:+document.getElementById('cH').value||2.5,shape:cShapeSel.value,face:"none",color:"#b8a88c",cat:"other"});};
+    w:fromU(document.getElementById('cW').value)||2,l:fromU(document.getElementById('cL').value)||2,
+    h:fromU(document.getElementById('cH').value)||2.5,shape:cShapeSel.value,face:"none",color:"#b8a88c",cat:"other"});};
 document.getElementById('roomPurpose').onchange=e=>{purpose=e.target.value;runFeedback();};
 document.getElementById('intent').oninput=e=>{intent=e.target.value;updateIntentEcho();runFeedback();};
 function goalsFromIntent(t){t=(t||'').toLowerCase();const g=[],has=re=>re.test(t);
@@ -692,6 +714,14 @@ function goalsFromIntent(t){t=(t||'').toLowerCase();const g=[],has=re=>re.test(t
 const GOAL_LABEL={entertain:'hosting',tv:'TV/movies',cozy:'cosiness',work:'work/focus',sleep:'rest',read:'reading',exercise:'open floor',family:'family/kids'};
 function updateIntentEcho(){const el=document.getElementById('intentEcho');if(!el)return;const g=goalsFromIntent(intent);
   el.innerHTML=g.length?('🎯 Tuning advice for: <b>'+g.map(x=>GOAL_LABEL[x]).join(', ')+'</b>'):'';}
+function updateUnitLabels(){document.querySelectorAll('.unit').forEach(e=>e.textContent=units);}
+function setUnits(u){units=u;
+  document.getElementById('unitFt').classList.toggle('active',u==='ft');
+  document.getElementById('unitIn').classList.toggle('active',u==='in');
+  syncRoomDims();document.getElementById('ceilBase').value=toU(room.ceilBase);
+  renderPieceEditor();renderCeil();updateUnitLabels();draw();}
+document.getElementById('unitFt').onclick=()=>setUnits('ft');
+document.getElementById('unitIn').onclick=()=>setUnits('in');
 
 /* ===================== TOOLBAR ===================== */
 document.getElementById('rotateBtn').onclick=rotateSel;
@@ -708,19 +738,19 @@ function updateSel(){const el=document.getElementById('selInfo');
 function renderPieceEditor(){const box=document.getElementById('pieceEditor');if(!box)return;
   if(mode!=='arrange'||!selected){box.classList.add('hidden');box.innerHTML='';return;}
   const p=selected;box.classList.remove('hidden');
-  const openRow=(p.openL!==undefined)?`<div><label>Open depth</label><input type="number" step="0.5" id="edOpen" value="${p.openL}"></div>`:'';
-  box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">${p.name}</div>
+  const openRow=(p.openL!==undefined)?`<div><label>Open depth (<span class="unit">${units}</span>)</label><input type="number" step="any" id="edOpen" value="${toU(p.openL)}"></div>`:'';
+  box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">${p.name} <span style="font-weight:400;color:var(--muted)">(${units})</span></div>
     <div class="row">
-      <div><label>Width</label><input type="number" step="0.5" id="edW" value="${p.w}"></div>
-      <div><label>Depth</label><input type="number" step="0.5" id="edL" value="${p.l}"></div>
-      <div><label>Height</label><input type="number" step="0.5" id="edH" value="${p.h}"></div>
+      <div><label>Width</label><input type="number" step="any" id="edW" value="${toU(p.w)}"></div>
+      <div><label>Depth</label><input type="number" step="any" id="edL" value="${toU(p.l)}"></div>
+      <div><label>Height</label><input type="number" step="any" id="edH" value="${toU(p.h)}"></div>
     </div>
     <div class="row" style="margin-top:4px">${openRow||'<div></div>'}<div style="align-self:flex-end"><button id="edRot" style="width:100%">⟳ Rotate</button></div></div>
     <button id="edDel" style="width:100%;margin-top:6px">🗑 Delete piece</button>`;
-  const upd=()=>{p.w=Math.max(0.2,+document.getElementById('edW').value||p.w);
-    p.l=Math.max(0.2,+document.getElementById('edL').value||p.l);
-    p.h=Math.max(0.1,+document.getElementById('edH').value||p.h);
-    const eo=document.getElementById('edOpen');if(eo)p.openL=Math.max(p.l,+eo.value||p.openL);
+  const upd=()=>{p.w=Math.max(0.2,fromU(document.getElementById('edW').value)||p.w);
+    p.l=Math.max(0.2,fromU(document.getElementById('edL').value)||p.l);
+    p.h=Math.max(0.1,fromU(document.getElementById('edH').value)||p.h);
+    const eo=document.getElementById('edOpen');if(eo)p.openL=Math.max(p.l,fromU(eo.value)||p.openL);
     clampToRoom(p);draw();runFeedback();renderLegend();};
   ['edW','edL','edH','edOpen'].forEach(id=>{const e=document.getElementById(id);if(e)e.oninput=upd;});
   document.getElementById('edRot').onclick=()=>{rotateSel();renderPieceEditor();};
@@ -740,7 +770,7 @@ function setMode(m){mode=m;
 
 /* ===================== SHAPE PRESETS ===================== */
 document.getElementById('applyShape').onclick=()=>{
-  const w=+document.getElementById('rW').value||20,l=+document.getElementById('rL').value||15;
+  const w=fromU(document.getElementById('rW').value)||20,l=fromU(document.getElementById('rL').value)||15;
   const s=document.getElementById('shapePreset').value;
   markers=[];room.obstacles=[];room.ceilZones=[];room.labels=[];selMarker=null;renderMarkerControls();
   if(s==='Rectangle')room.poly=[{x:0,y:0},{x:w,y:0},{x:w,y:l},{x:0,y:l}];
@@ -763,11 +793,11 @@ function scaleRoomTo(W,L){const xs=room.poly.map(p=>p.x),ys=room.poly.map(p=>p.y
   pieces.forEach(p=>{sc(p);clampToRoom(p);});
   draw();renderObstacles();renderCeil();runFeedback();}
 ['rW','rL'].forEach(id=>document.getElementById(id).onchange=()=>{
-  scaleRoomTo(+document.getElementById('rW').value||room.poly[0].x,+document.getElementById('rL').value);});
+  scaleRoomTo(fromU(document.getElementById('rW').value),fromU(document.getElementById('rL').value));});
 function syncRoomDims(){const a=document.activeElement;if(a&&(a.id==='rW'||a.id==='rL'))return;
   const xs=room.poly.map(p=>p.x),ys=room.poly.map(p=>p.y);
-  document.getElementById('rW').value=round(Math.max(...xs)-Math.min(...xs));
-  document.getElementById('rL').value=round(Math.max(...ys)-Math.min(...ys));}
+  document.getElementById('rW').value=toU(Math.max(...xs)-Math.min(...xs));
+  document.getElementById('rL').value=toU(Math.max(...ys)-Math.min(...ys));}
 
 /* ===================== OBSTACLES ===================== */
 document.getElementById('addObstacle').onclick=()=>{
@@ -790,15 +820,15 @@ function renderObstacles(){const box=document.getElementById('obstacleList');box
 }
 
 /* ===================== CEILING ZONES ===================== */
-document.getElementById('ceilBase').onchange=()=>{room.ceilBase=+document.getElementById('ceilBase').value||9;draw();runFeedback();};
+document.getElementById('ceilBase').onchange=()=>{room.ceilBase=fromU(document.getElementById('ceilBase').value)||9;draw();runFeedback();};
 document.getElementById('addCeilZone').onclick=()=>{const c=centroid(room.poly);
   room.ceilZones.push({x:round(c.x-3),y:round(c.y-3),w:6,l:6,h:7.5,label:"zone"});draw();renderCeil();runFeedback();};
 function renderCeil(){const box=document.getElementById('ceilList');box.innerHTML='';
   room.ceilZones.forEach((z,i)=>{const d=document.createElement('div');
-    d.innerHTML=`<span>x${z.x} y${z.y} · ${z.w}×${z.l}ft</span>
-      <span><input type="number" value="${z.h}" step="0.5" data-h="${i}" style="width:48px;padding:2px;font-size:11px"> ft
+    d.innerHTML=`<span>${toU(z.w)}×${toU(z.l)} ${units}</span>
+      <span><input type="number" value="${toU(z.h)}" step="any" data-h="${i}" style="width:52px;padding:2px;font-size:11px"> ${units}
       <button data-mv="${i}">edit</button><button data-del="${i}">✕</button></span>`;box.appendChild(d);});
-  box.querySelectorAll('[data-h]').forEach(inp=>inp.onchange=()=>{room.ceilZones[+inp.dataset.h].h=+inp.value;draw();runFeedback();});
+  box.querySelectorAll('[data-h]').forEach(inp=>inp.onchange=()=>{room.ceilZones[+inp.dataset.h].h=fromU(inp.value);draw();runFeedback();});
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{room.ceilZones.splice(+b.dataset.del,1);draw();renderCeil();runFeedback();});
   box.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{const z=room.ceilZones[+b.dataset.mv];
     z.x=+prompt("zone X (ft from left)",z.x)??z.x;z.y=+prompt("zone Y (ft from top)",z.y)??z.y;
@@ -811,7 +841,7 @@ document.getElementById('loadBtn').onclick=()=>{const d=localStorage.getItem('ro
   const o=JSON.parse(d);room=o.room;markers=o.markers;pieces=o.pieces;selected=null;if(o.purpose){purpose=o.purpose;document.getElementById('roomPurpose').value=purpose;}
   if(o.intent!==undefined){intent=o.intent;document.getElementById('intent').value=intent;updateIntentEcho();}
   room.labels=room.labels||[];room.obstacles=room.obstacles||[];room.ceilZones=room.ceilZones||[];
-  document.getElementById('ceilBase').value=room.ceilBase;
+  document.getElementById('ceilBase').value=toU(room.ceilBase);
   renderObstacles();renderCeil();updateSel();draw();runFeedback();syncRoomDims();if(view==='3d')buildStatic3d();};
 function flash(t){const el=document.getElementById('selInfo');const o=el.innerHTML;el.textContent=t;setTimeout(()=>el.innerHTML=o,1500);}
 
