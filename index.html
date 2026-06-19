@@ -68,12 +68,10 @@
   body.dark .furn-item,body.dark .feedback-item,body.dark .zone-list div,body.dark .add-custom,body.dark #pieceEditor,body.dark #markerControls,body.dark #photoDrop{background:#2c323b}
   body.dark .feedback-item{color:var(--ink)}
   @media (max-width:860px){
-    .wrap{grid-template-columns:1fr;height:auto}
-    .col{overflow:visible;max-height:none}
-    .center{order:-1;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10;padding-top:10px}
-    .left{border-right:none;border-bottom:1px solid var(--line)}
-    .right{border-left:none}
-    body{overflow-y:auto}
+    html,body{height:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    .wrap{display:flex;flex-direction:column;height:auto}
+    .col{overflow:visible;max-height:none;width:100%;border:none;border-bottom:1px solid var(--line)}
+    .center{order:-1;padding-top:10px}
     .canvas-tools button{padding:9px 11px}
     header .tag{display:none}
   }
@@ -139,11 +137,12 @@
         <option>L-shape</option>
         <option>Living area w/ central stairwell</option>
       </select>
-      <div class="row" style="margin-top:6px">
-        <div><label>Rect W</label><input id="rW" type="number" value="20" step="0.5"></div>
-        <div><label>Rect L</label><input id="rL" type="number" value="15" step="0.5"></div>
-      </div>
       <button id="applyShape" style="width:100%;margin-top:8px">Apply preset</button>
+      <div class="row" style="margin-top:8px">
+        <div><label>Room width (ft)</label><input id="rW" type="number" value="20" step="0.5"></div>
+        <div><label>Room length (ft)</label><input id="rL" type="number" value="15" step="0.5"></div>
+      </div>
+      <p class="small-note" style="margin-top:3px">Change these to resize the whole room (press Enter or tab out). The preset button rebuilds the shape from scratch.</p>
 
       <h2>Editing tool</h2>
       <div class="modebtns" style="margin-bottom:4px">
@@ -192,7 +191,7 @@
       <span>drag = orbit · shift/right-drag = pan · scroll = zoom · drag a piece = move it · R rotates</span>
       <label style="margin:0">walls <input id="wallOpacity" type="range" min="0" max="100" value="22" style="width:80px;vertical-align:middle"></label>
     </div>
-    <div style="position:relative;width:min(560px,100%,calc(100vh - 250px));aspect-ratio:1">
+    <div id="stage" style="position:relative;width:min(560px,100%,calc(100vh - 250px));aspect-ratio:1">
       <canvas id="plan" width="620" height="620" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
       <canvas id="d3canvas" width="620" height="620" class="hidden" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
     </div>
@@ -603,7 +602,7 @@ cv.addEventListener('pointermove',e=>{
     obDrag.o.pts.forEach(p=>{p.x+=nx;p.y+=ny;});draw();return;}
   if(drag&&selected){selected.x=ft.x-drag.dx;selected.y=ft.y-drag.dy;clampToRoom(selected);draw();}
 });
-cv.addEventListener('pointerup',()=>{if(vdrag!==null){vdrag=null;runFeedback();}
+cv.addEventListener('pointerup',()=>{if(vdrag!==null){vdrag=null;runFeedback();syncRoomDims();}
   if(obResize){obResize=null;renderObstacles();runFeedback();}
   if(zoneResize){zoneResize=null;renderCeil();runFeedback();}
   if(zoneDrag){zoneDrag=null;renderCeil();runFeedback();}
@@ -754,6 +753,21 @@ document.getElementById('applyShape').onclick=()=>{
   }
   draw();renderObstacles();renderCeil();runFeedback();
 };
+// live-resize: editing W/L scales the current room (and its obstacles/zones/furniture) to fit
+function scaleRoomTo(W,L){const xs=room.poly.map(p=>p.x),ys=room.poly.map(p=>p.y);
+  const minx=Math.min(...xs),miny=Math.min(...ys),cw=Math.max(...xs)-minx,cl=Math.max(...ys)-miny;
+  if(cw<=0||cl<=0||!(W>0)||!(L>0))return;
+  const sx=W/cw,sy=L/cl,sc=p=>{p.x=minx+(p.x-minx)*sx;p.y=miny+(p.y-miny)*sy;};
+  room.poly.forEach(sc);room.obstacles.forEach(o=>o.pts.forEach(sc));
+  room.ceilZones.forEach(z=>{z.x=minx+(z.x-minx)*sx;z.y=miny+(z.y-miny)*sy;z.w*=sx;z.l*=sy;});
+  pieces.forEach(p=>{sc(p);clampToRoom(p);});
+  draw();renderObstacles();renderCeil();runFeedback();}
+['rW','rL'].forEach(id=>document.getElementById(id).onchange=()=>{
+  scaleRoomTo(+document.getElementById('rW').value||room.poly[0].x,+document.getElementById('rL').value);});
+function syncRoomDims(){const a=document.activeElement;if(a&&(a.id==='rW'||a.id==='rL'))return;
+  const xs=room.poly.map(p=>p.x),ys=room.poly.map(p=>p.y);
+  document.getElementById('rW').value=round(Math.max(...xs)-Math.min(...xs));
+  document.getElementById('rL').value=round(Math.max(...ys)-Math.min(...ys));}
 
 /* ===================== OBSTACLES ===================== */
 document.getElementById('addObstacle').onclick=()=>{
@@ -798,7 +812,7 @@ document.getElementById('loadBtn').onclick=()=>{const d=localStorage.getItem('ro
   if(o.intent!==undefined){intent=o.intent;document.getElementById('intent').value=intent;updateIntentEcho();}
   room.labels=room.labels||[];room.obstacles=room.obstacles||[];room.ceilZones=room.ceilZones||[];
   document.getElementById('ceilBase').value=room.ceilBase;
-  renderObstacles();renderCeil();updateSel();draw();runFeedback();if(view==='3d')buildStatic3d();};
+  renderObstacles();renderCeil();updateSel();draw();runFeedback();syncRoomDims();if(view==='3d')buildStatic3d();};
 function flash(t){const el=document.getElementById('selInfo');const o=el.innerHTML;el.textContent=t;setTimeout(()=>el.innerHTML=o,1500);}
 
 /* ===================== FEEDBACK ENGINE ===================== */
