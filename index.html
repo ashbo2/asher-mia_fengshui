@@ -487,16 +487,18 @@ function drawMarker(m){
     ctx.fillStyle="#7a766c";ctx.font="700 9px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(lab,ip.x,ip.y);};
   if(m.type==='door'){
     ctx.strokeStyle="#c97b4a";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
-    const hinge=(m.hinge==='right')?e2:e1, free=(m.hinge==='right')?e1:e2;
-    const sw=(m.swing==='out')?{x:-n.x,y:-n.y}:n;
-    const leaf={x:hinge.x+sw.x*openW,y:hinge.y+sw.y*openW};
-    const hp=ftToPx(hinge),lp=ftToPx(leaf),fp=ftToPx(free),R=openW*pxPerFt;
-    ctx.strokeStyle="rgba(201,123,74,.85)";ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(hp.x,hp.y);ctx.lineTo(lp.x,lp.y);ctx.stroke();
-    let a0=Math.atan2(fp.y-hp.y,fp.x-hp.x),a1=Math.atan2(lp.y-hp.y,lp.x-hp.x);
-    let dd=a1-a0;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;
-    ctx.strokeStyle="rgba(201,123,74,.4)";ctx.lineWidth=1.5;ctx.beginPath();
-    for(let s=0;s<=16;s++){const aa=a0+dd*s/16,x=hp.x+R*Math.cos(aa),y=hp.y+R*Math.sin(aa);s?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+    if(m.swing!=='none'){
+      const hinge=(m.hinge==='right')?e2:e1, free=(m.hinge==='right')?e1:e2;
+      const sw=(m.swing==='out')?{x:-n.x,y:-n.y}:n;
+      const leaf={x:hinge.x+sw.x*openW,y:hinge.y+sw.y*openW};
+      const hp=ftToPx(hinge),lp=ftToPx(leaf),fp=ftToPx(free),R=openW*pxPerFt;
+      ctx.strokeStyle="rgba(201,123,74,.85)";ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(hp.x,hp.y);ctx.lineTo(lp.x,lp.y);ctx.stroke();
+      let a0=Math.atan2(fp.y-hp.y,fp.x-hp.x),a1=Math.atan2(lp.y-hp.y,lp.x-hp.x);
+      let dd=a1-a0;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;
+      ctx.strokeStyle="rgba(201,123,74,.4)";ctx.lineWidth=1.5;ctx.beginPath();
+      for(let s=0;s<=16;s++){const aa=a0+dd*s/16,x=hp.x+R*Math.cos(aa),y=hp.y+R*Math.sin(aa);s?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+    }
     destLetter();
   }else if(m.type==='slider'){
     // sliding glass: wide glass opening with two overlapping panels + slide arrows (no swing)
@@ -1440,8 +1442,8 @@ function renderMarkerControls(){
       </select>
     </div>
     <div class="${m.type==='door'?'':'hidden'}">
-      <label>Swing</label><div class="modebtns"><button data-sw="in" class="${m.swing!=='out'?'active':''}">Inward</button><button data-sw="out" class="${m.swing==='out'?'active':''}">Outward</button></div>
-      <label>Hinge side</label><div class="modebtns"><button data-hg="left" class="${m.hinge!=='right'?'active':''}">Left</button><button data-hg="right" class="${m.hinge==='right'?'active':''}">Right</button></div>
+      <label>Swing</label><div class="modebtns"><button data-sw="in" class="${m.swing==='in'||!m.swing?'active':''}">Inward</button><button data-sw="out" class="${m.swing==='out'?'active':''}">Outward</button><button data-sw="none" class="${m.swing==='none'?'active':''}">None</button></div>
+      <div class="${m.swing==='none'?'hidden':''}"><label>Hinge side</label><div class="modebtns"><button data-hg="left" class="${m.hinge!=='right'?'active':''}">Left</button><button data-hg="right" class="${m.hinge==='right'?'active':''}">Right</button></div></div>
     </div>
     <button id="delMarker" style="width:100%;margin-top:8px">🗑 Remove</button>`;
   document.getElementById('mWidth').onchange=e=>{m.width=Math.max(0.5,fromU(e.target.value)||3);draw();runFeedback();};
