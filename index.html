@@ -960,7 +960,7 @@ function computeFeedback(P){
         `Its back floats ${ft1(w.d)} ft off the nearest wall. Cliff: a bed/sofa/desk needs a solid wall behind — never floating or against a low partition.`,p.id);}
     const sees=seesDoor(p),inLine=inLineWithDoor(p);
     if(sees===true&&!inLine){score++;add('good',`${L} commands the door`,'Sees the entry without sitting in its path.',p.id);}
-    else if(inLine){const d=doors.find(inLineWithDoor.bind(null,p))||doors[0];const nn=markerNormal(d),lat={x:-nn.y,y:nn.x},dp=markerPt(d);
+    else if(inLine){const cd=commandDoors();const d=cd.find(inLineWithDoor.bind(null,p))||cd[0];const nn=markerNormal(d),lat={x:-nn.y,y:nn.x},dp=markerPt(d);
       const side=((p.x-dp.x)*lat.x+(p.y-dp.y)*lat.y)>=0?1:-1;
       add('bad',`Slide ${L} ${planDir(lat.x*side,lat.y*side)} out of the doorway`,'It sits in the door’s rushing chi. Set it diagonal to the door — in view, out of the line.',p.id);}
     else if(sees===false)add('warn',`Turn ${L} to face the door`,'You should see whoever enters without being startled from behind.',p.id);
@@ -1561,7 +1561,7 @@ document.getElementById('autoBtn').onclick=()=>{
   const note=document.getElementById('autoNote'),box=document.getElementById('autoOptions');
   document.getElementById('autoOverlay').style.display='flex';
   note.textContent='Computing…';box.innerHTML='';
-  setTimeout(()=>{const opts=generateLayouts();
+  setTimeout(()=>{let opts;try{opts=generateLayouts();}catch(err){console.error(err);note.textContent='Auto-arrange hit a snag: '+err.message+'. Tell Asher what furniture/room you had.';return;}
     if(opts.length===0){note.textContent='Couldn’t place these pieces — the room may be too tight or has no straight walls.';return;}
     note.textContent=`Scored ${opts.length} option${opts.length>1?'s':''} (current layout scores ${scoreLayout(pieces)}).`;
     const labels=['A','B','C'];box.innerHTML='';
