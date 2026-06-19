@@ -202,7 +202,7 @@
     </div>
     <div class="legend">
       Thick line = wall · <span style="color:var(--accent2)">orange</span> = door (arc = swing; letter = <b>M</b>ain / <b>H</b>all / <b>B</b>ath / <b>C</b>loset) ·
-      <span style="color:#4a78b5">blue</span> = window · hatched grey = stairwell/obstacle ·
+      <span style="color:#4a78b5">blue</span> = window / sliding glass · gap with jambs = open doorway · hatched grey = stairwell/obstacle ·
       tinted fill = ceiling zone · beds show a <b>HEAD</b> board + pillows · dashed = sofa-bed open · 1 square = 1 ft.
     </div>
     <div id="pieceLegend" style="display:flex;flex-wrap:wrap;gap:6px 12px;max-width:600px;font-size:12px;justify-content:center"></div>
@@ -389,9 +389,10 @@ function markerNormal(m){ // inward unit normal of the edge
   const mp=markerPt(m); if(!pointInPoly(mp.x+nx*0.2,mp.y+ny*0.2,room.poly)){nx=-nx;ny=-ny;}
   return{x:nx,y:ny};}
 function doorMarkers(){return markers.filter(m=>m.type==='door');}
-function windowMarkers(){return markers.filter(m=>m.type==='window');}
+function windowMarkers(){return markers.filter(m=>m.type==='window'||m.type==='slider');} // sliders are glass
+function passMarkers(){return markers.filter(m=>m.type==='door'||m.type==='slider'||m.type==='opening');} // openings you walk through
 // doors you walk through (used for command position). Closet/bathroom are handled separately.
-function commandDoors(){const e=markers.filter(m=>m.type==='door'&&(m.dest==='main'||m.dest==='hall'||!m.dest));return e.length?e:doorMarkers();}
+function commandDoors(){const e=markers.filter(m=>(m.type==='door'||m.type==='opening')&&(m.dest==='main'||m.dest==='hall'||!m.dest));return e.length?e:passMarkers();}
 function doorsOf(dest){return markers.filter(m=>m.type==='door'&&m.dest===dest);}
 function mainDoor(){return markers.find(m=>m.type==='door'&&m.dest==='main')||commandDoors()[0]||doorMarkers()[0];}
 function destLabel(d){return {main:'main entry',hall:'hallway',bath:'bathroom',closet:'closet'}[d]||'door';}
@@ -475,11 +476,15 @@ function drawMarker(m){
   const mp=markerPt(m),n=markerNormal(m);
   const a=room.poly[m.edge],b=room.poly[(m.edge+1)%room.poly.length];
   let ex=b.x-a.x,ey=b.y-a.y;const el=Math.hypot(ex,ey)||1;ex/=el;ey/=el;
-  const half=1.5,openW=2*half; // ft
+  const half=(m.width||3)/2,openW=m.width||3; // ft
   const e1={x:mp.x-ex*half,y:mp.y-ey*half}, e2={x:mp.x+ex*half,y:mp.y+ey*half};
   const p1=ftToPx(e1),p2=ftToPx(e2);
   if(m===selMarker){ctx.strokeStyle="#3f6f5e";ctx.lineWidth=2;ctx.beginPath();
-    const c=ftToPx(mp);ctx.arc(c.x,c.y,Math.max(p2.x-p1.x,p2.y-p1.y,18)/2+6,0,7);ctx.stroke();}
+    const c=ftToPx(mp);ctx.arc(c.x,c.y,Math.hypot(p2.x-p1.x,p2.y-p1.y)/2+7,0,7);ctx.stroke();}
+  const destLetter=()=>{const lab={main:'M',hall:'H',bath:'B',closet:'C'}[m.dest]||'';
+    if(!lab)return;const ip=ftToPx({x:mp.x+n.x*0.95,y:mp.y+n.y*0.95});
+    ctx.fillStyle="rgba(255,255,255,.9)";ctx.beginPath();ctx.arc(ip.x,ip.y,7,0,7);ctx.fill();
+    ctx.fillStyle="#7a766c";ctx.font="700 9px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(lab,ip.x,ip.y);};
   if(m.type==='door'){
     ctx.strokeStyle="#c97b4a";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
     const hinge=(m.hinge==='right')?e2:e1, free=(m.hinge==='right')?e1:e2;
@@ -492,10 +497,25 @@ function drawMarker(m){
     let dd=a1-a0;while(dd>Math.PI)dd-=2*Math.PI;while(dd<-Math.PI)dd+=2*Math.PI;
     ctx.strokeStyle="rgba(201,123,74,.4)";ctx.lineWidth=1.5;ctx.beginPath();
     for(let s=0;s<=16;s++){const aa=a0+dd*s/16,x=hp.x+R*Math.cos(aa),y=hp.y+R*Math.sin(aa);s?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
-    const lab={main:'M',hall:'H',bath:'B',closet:'C'}[m.dest]||'';
-    if(lab){const ip=ftToPx({x:mp.x+n.x*0.95,y:mp.y+n.y*0.95});
-      ctx.fillStyle="rgba(255,255,255,.9)";ctx.beginPath();ctx.arc(ip.x,ip.y,7,0,7);ctx.fill();
-      ctx.fillStyle="#b9743f";ctx.font="700 9px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(lab,ip.x,ip.y);}
+    destLetter();
+  }else if(m.type==='slider'){
+    // sliding glass: wide glass opening with two overlapping panels + slide arrows (no swing)
+    ctx.strokeStyle="#4a78b5";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    const q1=ftToPx({x:mp.x-ex*half+n.x*0.18,y:mp.y-ey*half+n.y*0.18}),qm=ftToPx({x:mp.x+n.x*0.18,y:mp.y+n.y*0.18});
+    ctx.strokeStyle="#bcd6ef";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(ftToPx(mp).x,ftToPx(mp).y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(q1.x,q1.y);ctx.lineTo(qm.x,qm.y);ctx.stroke();           // offset sliding panel
+    const c=ftToPx(mp);ctx.strokeStyle="#2f5a4b";ctx.lineWidth=1.4;                       // slide arrows
+    ctx.beginPath();ctx.moveTo(c.x-ex*8-ey*0,c.y-ey*8);ctx.lineTo(c.x+ex*8,c.y+ey*8);ctx.stroke();
+    destLetter();
+  }else if(m.type==='opening'){
+    // cased opening / doorway with no door — erase the wall, leave a gap with jambs
+    ctx.strokeStyle="#fff";ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    ctx.strokeStyle="#8c8678";ctx.lineWidth=2;const j=0.45;
+    const j1=ftToPx({x:e1.x+n.x*j,y:e1.y+n.y*j}),j2=ftToPx({x:e2.x+n.x*j,y:e2.y+n.y*j});
+    ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(j1.x,j1.y);ctx.moveTo(p2.x,p2.y);ctx.lineTo(j2.x,j2.y);ctx.stroke();
+    ctx.strokeStyle="rgba(140,134,120,.45)";ctx.setLineDash([3,3]);ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();ctx.setLineDash([]);
+    destLetter();
   }else{
     ctx.strokeStyle="#4a78b5";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
     ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
@@ -611,7 +631,7 @@ cv.addEventListener('pointerdown',e=>{
       const hit=markerAtPx(ft.mx,ft.my);
       if(hit){selMarker=hit;renderMarkerControls();draw();return;}
       const edge=edgeAt(ft);
-      if(edge){const m={edge:edge.edge,t:edge.t,type:'door',swing:'in',hinge:'left',dest:'main'};
+      if(edge){const m={edge:edge.edge,t:edge.t,type:'door',swing:'in',hinge:'left',dest:'main',width:3};
         markers.push(m);selMarker=m;renderMarkerControls();draw();runFeedback();}
       return;}
     if(roomTool==='label'){const edge=edgeAt(ft);
@@ -926,8 +946,8 @@ function computeFeedback(P){
     return c==='sofa'||c==='sofabed'||c==='bed'||c==='desk';});
   let mainSeat = purpose==='bedroom'?beds[0]:purpose==='office'?desks[0]:(sofas[0]||beds[0]||desks[0]);
 
-  if(doors.length===0)
-    add('warn','Mark where the door is','Switch to “Edit room” and click the door’s wall — command position is judged from it.');
+  if(commandDoors().length===0)
+    add('warn','Mark where the door is','Switch to “Edit room” and click the wall to add a door or open doorway — command position is judged from it.');
 
   // ---- COMMAND POSITION for each command seat ----
   commandSeats.forEach(p=>{const L=shortName(p.name);
@@ -1050,8 +1070,8 @@ function computeFeedback(P){
   }
 
   // ---- ENTRANCE / chi ----
-  // keep every doorway's mouth clear (any door you use)
-  doors.forEach(d=>{const dp=markerPt(d);
+  // keep every doorway's mouth clear (any opening you walk through)
+  passMarkers().forEach(d=>{const dp=markerPt(d);
     const blk=P.find(p=>isSolid(p)&&Math.hypot(p.x-dp.x,p.y-dp.y)<2.2);
     if(blk){max++;add('warn',`Clear “${shortName(blk.name)}” from the ${destLabel(d.dest)}`,'Keep the first few feet inside the doorway open so chi (and people) flow through.',blk.id);}});
   // sightlines & swing apply to the MAIN entry
@@ -1273,13 +1293,14 @@ function buildStatic3d(){
     const mat=new THREE.MeshStandardMaterial({color:0xbfb8a8,transparent:true,opacity:op,side:THREE.DoubleSide});
     three.wallMats.push(mat);const wall=new THREE.Mesh(new THREE.PlaneGeometry(len,h),mat);
     wall.position.set((ta.x+tb.x)/2,h/2,(ta.z+tb.z)/2);wall.rotation.y=-Math.atan2(tb.z-ta.z,tb.x-ta.x);three.roomGroup.add(wall);}
-  // doors & windows as panels on the wall
+  // doors / windows / sliders as panels on the wall (openings = gap, no panel)
   markers.forEach(m=>{const mp=markerPt(m),n=markerNormal(m);const a=room.poly[m.edge],b=room.poly[(m.edge+1)%room.poly.length];
-    const ang=-Math.atan2(b.y-a.y,b.x-a.x);
-    if(m.type==='window'){const me=new THREE.Mesh(new THREE.PlaneGeometry(3,3),new THREE.MeshStandardMaterial({color:0x9ec3e6,transparent:true,opacity:0.55,side:THREE.DoubleSide}));
-      me.position.set(mp.x-cx+n.x*0.03,3.3,mp.y-cy+n.y*0.03);me.rotation.y=ang;three.roomGroup.add(me);}
-    else{const me=new THREE.Mesh(new THREE.PlaneGeometry(3,6.7),new THREE.MeshStandardMaterial({color:0xc97b4a,transparent:true,opacity:0.85,side:THREE.DoubleSide}));
-      me.position.set(mp.x-cx+n.x*0.03,3.35,mp.y-cy+n.y*0.03);me.rotation.y=ang;three.roomGroup.add(me);}});
+    const ang=-Math.atan2(b.y-a.y,b.x-a.x),wd=m.width||3;
+    let me;
+    if(m.type==='window')me=new THREE.Mesh(new THREE.PlaneGeometry(wd,3),new THREE.MeshStandardMaterial({color:0x9ec3e6,transparent:true,opacity:0.55,side:THREE.DoubleSide}));
+    else if(m.type==='slider')me=new THREE.Mesh(new THREE.PlaneGeometry(wd,6.7),new THREE.MeshStandardMaterial({color:0x86b8e0,transparent:true,opacity:0.45,side:THREE.DoubleSide}));
+    else if(m.type==='door')me=new THREE.Mesh(new THREE.PlaneGeometry(wd,6.7),new THREE.MeshStandardMaterial({color:0xc97b4a,transparent:true,opacity:0.85,side:THREE.DoubleSide}));
+    if(me){const yc=m.type==='window'?3.3:3.35;me.position.set(mp.x-cx+n.x*0.03,yc,mp.y-cy+n.y*0.03);me.rotation.y=ang;three.roomGroup.add(me);}});
   room.ceilZones.forEach(z=>{const g=new THREE.PlaneGeometry(z.w,z.l);g.rotateX(Math.PI/2);
     const me=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:z.h<room.ceilBase?0xbb5b46:0x3f6f5e,transparent:true,opacity:0.18,side:THREE.DoubleSide}));
     me.position.set(z.x+z.w/2-cx,z.h,z.y+z.l/2-cy);three.roomGroup.add(me);});
@@ -1386,7 +1407,7 @@ document.getElementById('wallOpacity').oninput=e=>{if(three.wallMats)three.wallM
 /* ===================== ROOM SUB-TOOLS & MARKER CONTROLS ===================== */
 const toolHelps={
   corners:'<b>Corners:</b> drag a corner to reshape. Double-click an edge to add a corner; double-click a corner to delete it.',
-  opening:'<b>Door / Window:</b> click a wall to drop a door, then set where it <b>leads to</b> (main entry / hallway / bathroom / closet), plus swing &amp; hinge. Click an existing one to edit it.',
+  opening:'<b>Door / Window:</b> click a wall to drop a door. Click it to edit — switch between <b>door</b>, <b>open doorway</b>, <b>window</b> or <b>sliding glass</b>, set its <b>width</b>, where it leads, and (doors) swing &amp; hinge.',
   label:'<b>Label wall:</b> click a wall and type a name (e.g. “window wall”, “kitchen side”). Feedback will reference it. Click again and clear the text to remove.'};
 function setTool(t){roomTool=t;selMarker=null;renderMarkerControls();
   document.getElementById('toolCorners').classList.toggle('active',t==='corners');
@@ -1400,10 +1421,16 @@ function renderMarkerControls(){
   const box=document.getElementById('markerControls');
   if(!selMarker){box.classList.add('hidden');box.innerHTML='';return;}
   const m=selMarker;box.classList.remove('hidden');
-  box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">Selected ${m.type}</div>
-    <div class="modebtns"><button data-t="door" class="${m.type==='door'?'active':''}">Door</button>
-      <button data-t="window" class="${m.type==='window'?'active':''}">Window</button></div>
-    <div id="doorOpts" class="${m.type==='door'?'':'hidden'}">
+  const TN={door:'Door',opening:'Open doorway',window:'Window',slider:'Sliding glass'};
+  const hasDest=(m.type==='door'||m.type==='opening'||m.type==='slider');
+  box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">${TN[m.type]||m.type}</div>
+    <div class="modebtns" style="flex-wrap:wrap">
+      <button data-t="door" class="${m.type==='door'?'active':''}">Door</button>
+      <button data-t="opening" class="${m.type==='opening'?'active':''}">Open</button>
+      <button data-t="window" class="${m.type==='window'?'active':''}">Window</button>
+      <button data-t="slider" class="${m.type==='slider'?'active':''}">Slider</button></div>
+    <label>Width (<span class="unit">${units}</span>)</label><input id="mWidth" type="number" step="any" value="${toU(m.width||3)}">
+    <div class="${hasDest?'':'hidden'}">
       <label>Leads to</label>
       <select id="mDest">
         <option value="main"${m.dest==='main'?' selected':''}>Main entry (outside)</option>
@@ -1411,12 +1438,19 @@ function renderMarkerControls(){
         <option value="bath"${m.dest==='bath'?' selected':''}>Bathroom</option>
         <option value="closet"${m.dest==='closet'?' selected':''}>Closet</option>
       </select>
+    </div>
+    <div class="${m.type==='door'?'':'hidden'}">
       <label>Swing</label><div class="modebtns"><button data-sw="in" class="${m.swing!=='out'?'active':''}">Inward</button><button data-sw="out" class="${m.swing==='out'?'active':''}">Outward</button></div>
       <label>Hinge side</label><div class="modebtns"><button data-hg="left" class="${m.hinge!=='right'?'active':''}">Left</button><button data-hg="right" class="${m.hinge==='right'?'active':''}">Right</button></div>
     </div>
     <button id="delMarker" style="width:100%;margin-top:8px">🗑 Remove</button>`;
+  document.getElementById('mWidth').onchange=e=>{m.width=Math.max(0.5,fromU(e.target.value)||3);draw();runFeedback();};
   const ds=document.getElementById('mDest');if(ds)ds.onchange=()=>{m.dest=ds.value;draw();runFeedback();};
-  box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{m.type=b.dataset.t;if(m.type==='door'){m.swing=m.swing||'in';m.hinge=m.hinge||'left';m.dest=m.dest||'main';}renderMarkerControls();draw();runFeedback();});
+  box.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{m.type=b.dataset.t;
+    if(m.type==='door'){m.swing=m.swing||'in';m.hinge=m.hinge||'left';m.dest=m.dest||'main';}
+    if(m.type==='slider'){m.dest=m.dest||'main';if(!m.width||m.width<4)m.width=6;}
+    if(m.type==='opening'){m.dest=m.dest||'hall';}
+    renderMarkerControls();draw();runFeedback();});
   box.querySelectorAll('[data-sw]').forEach(b=>b.onclick=()=>{m.swing=b.dataset.sw;renderMarkerControls();draw();});
   box.querySelectorAll('[data-hg]').forEach(b=>b.onclick=()=>{m.hinge=b.dataset.hg;renderMarkerControls();draw();});
   document.getElementById('delMarker').onclick=()=>{markers=markers.filter(x=>x!==m);selMarker=null;renderMarkerControls();draw();runFeedback();};
